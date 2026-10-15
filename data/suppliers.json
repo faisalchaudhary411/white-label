@@ -1,0 +1,11 @@
+[
+  {
+    "id": "supp-001",
+    "companyName": "ABC Distributors",
+    "contactPerson": "Ali Raza",
+    "phone": "03009876543",
+    "ledgerBalance": 0,
+    "active": true,
+    "createdAt": "2025-01-01T00:00:00.000Z"
+  }
+]

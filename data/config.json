@@ -1,1 +1,29 @@
-[]
+{
+  "storeName": "My Store POS",
+  "tagline": "Quality Products, Trusted Service",
+  "phone": "+92 300 1234567",
+  "address": "Main Boulevard, Lahore, Pakistan",
+  "ntn": "1234567-8",
+  "footnote": "Thank you for shopping with us! Goods once sold will not be returned.",
+  "logoBase64": "",
+  "currency": "PKR",
+  "currencySymbol": "Rs.",
+  "taxLabel": "GST",
+  "defaultTaxRate": 17,
+  "receiptWidth": "80mm",
+  "lowStockThresholdDefault": 10,
+  "expiryAlertDays": [30, 60, 90],
+  "licenseKey": "",
+  "licensed": false,
+  "github": {
+    "owner": "",
+    "repo": "",
+    "branch": "main",
+    "token": ""
+  },
+  "theme": {
+    "primaryColor": "#2563eb",
+    "secondaryColor": "#1e40af"
+  },
+  "updatedAt": "2025-01-01T00:00:00.000Z"
+}

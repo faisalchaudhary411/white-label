@@ -1,0 +1,51 @@
+[
+  {
+    "id": "prod-001",
+    "sku": "SKU-001",
+    "barcode": "8901234567890",
+    "name": "Sample Product 1",
+    "category": "General",
+    "costPrice": 50,
+    "sellingPrice": 80,
+    "wholesalePrice": 65,
+    "taxRate": 17,
+    "stock": 100,
+    "lowStockThreshold": 10,
+    "batches": [
+      {
+        "lotNumber": "LOT-A1",
+        "expiryDate": "2026-12-31",
+        "quantity": 100
+      }
+    ],
+    "active": true,
+    "createdAt": "2025-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "prod-002",
+    "sku": "SKU-002",
+    "barcode": "8901234567891",
+    "name": "Sample Medicine",
+    "category": "Pharmacy",
+    "costPrice": 120,
+    "sellingPrice": 180,
+    "wholesalePrice": 150,
+    "taxRate": 0,
+    "stock": 45,
+    "lowStockThreshold": 15,
+    "batches": [
+      {
+        "lotNumber": "MED-B2",
+        "expiryDate": "2026-06-15",
+        "quantity": 30
+      },
+      {
+        "lotNumber": "MED-B3",
+        "expiryDate": "2026-11-20",
+        "quantity": 15
+      }
+    ],
+    "active": true,
+    "createdAt": "2025-01-01T00:00:00.000Z"
+  }
+]

@@ -1,0 +1,22 @@
+[
+  {
+    "id": "cust-001",
+    "name": "Walk-in Customer",
+    "phone": "",
+    "address": "",
+    "ntn": "",
+    "creditBalance": 0,
+    "active": true,
+    "createdAt": "2025-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "cust-002",
+    "name": "Ahmed Khan",
+    "phone": "03001234567",
+    "address": "Lahore, Pakistan",
+    "ntn": "",
+    "creditBalance": 2500,
+    "active": true,
+    "createdAt": "2025-01-01T00:00:00.000Z"
+  }
+]
