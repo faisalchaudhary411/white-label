@@ -1,11 +1,5 @@
 [
-  {
-    "id": "supp-001",
-    "companyName": "ABC Distributors",
-    "contactPerson": "Ali Raza",
-    "phone": "03009876543",
-    "ledgerBalance": 0,
-    "active": true,
-    "createdAt": "2025-01-01T00:00:00.000Z"
-  }
+  {"id":"supp-001","companyName":"ABC Distributors","contactPerson":"Ali Raza","phone":"03009876543","ledgerBalance":45000,"active":true,"createdAt":"2025-01-01T00:00:00.000Z"},
+  {"id":"supp-002","companyName":"Punjab Pharma Supply","contactPerson":"Dr. Hassan","phone":"042111222333","ledgerBalance":18500,"active":true,"createdAt":"2025-01-01T00:00:00.000Z"},
+  {"id":"supp-003","companyName":"Fresh Dairy Co.","contactPerson":"Imran Sheikh","phone":"03005556677","ledgerBalance":0,"active":true,"createdAt":"2025-01-01T00:00:00.000Z"}
 ]

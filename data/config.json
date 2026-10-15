@@ -1,5 +1,5 @@
 {
-  "storeName": "My Store POS",
+  "storeName": "Demo General Store",
   "tagline": "Quality Products, Trusted Service",
   "phone": "+92 300 1234567",
   "address": "Main Boulevard, Lahore, Pakistan",
@@ -15,6 +15,14 @@
   "expiryAlertDays": [30, 60, 90],
   "licenseKey": "",
   "licensed": false,
+  "vendor": {
+    "appName": "GrokPOS",
+    "makerName": "Your Company Name",
+    "makerWebsite": "https://example.com",
+    "makerSupport": "support@example.com",
+    "poweredByText": "Powered by GrokPOS",
+    "makerLogoBase64": ""
+  },
   "github": {
     "owner": "",
     "repo": "",

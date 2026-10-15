@@ -1,22 +1,7 @@
 [
-  {
-    "id": "cust-001",
-    "name": "Walk-in Customer",
-    "phone": "",
-    "address": "",
-    "ntn": "",
-    "creditBalance": 0,
-    "active": true,
-    "createdAt": "2025-01-01T00:00:00.000Z"
-  },
-  {
-    "id": "cust-002",
-    "name": "Ahmed Khan",
-    "phone": "03001234567",
-    "address": "Lahore, Pakistan",
-    "ntn": "",
-    "creditBalance": 2500,
-    "active": true,
-    "createdAt": "2025-01-01T00:00:00.000Z"
-  }
+  {"id":"cust-walkin","name":"Walk-in Customer","phone":"","address":"","ntn":"","creditBalance":0,"active":true,"createdAt":"2025-01-01T00:00:00.000Z"},
+  {"id":"cust-002","name":"Ahmed Khan","phone":"03001234567","address":"Gulberg III, Lahore","ntn":"","creditBalance":2500,"active":true,"createdAt":"2025-01-01T00:00:00.000Z"},
+  {"id":"cust-003","name":"Fatima Bibi","phone":"03219876543","address":"Model Town, Lahore","ntn":"","creditBalance":0,"active":true,"createdAt":"2025-01-01T00:00:00.000Z"},
+  {"id":"cust-004","name":"Ali Traders (Wholesale)","phone":"04235789012","address":"Hall Road, Lahore","ntn":"9876543-1","creditBalance":12500,"active":true,"createdAt":"2025-01-01T00:00:00.000Z"},
+  {"id":"cust-005","name":"Sara Malik","phone":"03331234567","address":"DHA Phase 5","ntn":"","creditBalance":750,"active":true,"createdAt":"2025-01-01T00:00:00.000Z"}
 ]
