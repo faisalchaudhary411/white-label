@@ -24,12 +24,12 @@ const App = {
 
   applyBranding() {
     const c = Store.config;
+    const v = c.vendor || {};
     document.documentElement.style.setProperty('--primary', c.theme?.primaryColor || '#2563eb');
     document.documentElement.style.setProperty('--primary-dark', c.theme?.secondaryColor || '#1e40af');
     const title = document.getElementById('app-title');
     if (title) title.textContent = c.storeName || 'POS';
-    document.title = (c.storeName || 'POS') + ' — Invoice & POS';
-    // Logo
+    document.title = (c.storeName || 'POS') + ' — ' + (v.appName || 'POS');
     document.querySelectorAll('[data-logo]').forEach(el => {
       if (c.logoBase64) {
         el.src = c.logoBase64;
@@ -44,6 +44,24 @@ const App = {
     document.querySelectorAll('[data-tagline]').forEach(el => {
       el.textContent = c.tagline || '';
     });
+    let powered = document.getElementById('powered-by');
+    if (!powered) {
+      const loginCard = document.querySelector('.login-card');
+      if (loginCard) {
+        powered = document.createElement('p');
+        powered.id = 'powered-by';
+        powered.className = 'text-muted text-center mt-2';
+        powered.style.fontSize = '0.7rem';
+        loginCard.appendChild(powered);
+      }
+    }
+    if (powered) {
+      const parts = [];
+      if (v.poweredByText) parts.push(v.poweredByText);
+      else if (v.makerName) parts.push('Powered by ' + v.makerName);
+      if (v.makerSupport) parts.push(v.makerSupport);
+      powered.textContent = parts.join(' · ');
+    }
   },
 
   checkLicense() {
@@ -146,53 +164,95 @@ const App = {
     if (el && u) el.innerHTML = `<strong>${u.name}</strong> · ${u.role}`;
   },
 
-  buildNav() {
-    const nav = document.getElementById('sidebar-nav');
+  navItems() {
     const role = Store.currentUser?.role;
-    const items = [
-      { id: 'dashboard', label: 'Dashboard', icon: '📊', roles: ['admin', 'inventory', 'cashier'] },
-      { id: 'pos', label: 'POS / Billing', icon: '🛒', roles: ['admin', 'cashier'] },
-      { id: 'products', label: 'Products', icon: '📦', roles: ['admin', 'inventory'] },
-      { id: 'customers', label: 'Customers', icon: '👥', roles: ['admin', 'cashier', 'inventory'] },
+    return [
+      { id: 'dashboard', label: 'Dashboard', icon: '📊', roles: ['admin', 'inventory', 'cashier'], bottom: true },
+      { id: 'pos', label: 'POS', icon: '🛒', roles: ['admin', 'cashier'], bottom: true },
+      { id: 'products', label: 'Products', icon: '📦', roles: ['admin', 'inventory'], bottom: true },
+      { id: 'customers', label: 'Customers', icon: '👥', roles: ['admin', 'cashier', 'inventory'], bottom: true },
       { id: 'suppliers', label: 'Suppliers', icon: '🏭', roles: ['admin', 'inventory'] },
-      { id: 'invoices', label: 'Invoices', icon: '🧾', roles: ['admin', 'cashier'] },
+      { id: 'invoices', label: 'Invoices', icon: '🧾', roles: ['admin', 'cashier'], bottom: true },
+      { id: 'returns', label: 'Returns', icon: '↩️', roles: ['admin', 'cashier'] },
+      { id: 'stockin', label: 'Stock In', icon: '📥', roles: ['admin', 'inventory'] },
+      { id: 'barcodes', label: 'Barcodes', icon: '🏷️', roles: ['admin', 'inventory'] },
       { id: 'reports', label: 'Reports', icon: '📈', roles: ['admin'] },
       { id: 'users', label: 'Users', icon: '🔐', roles: ['admin'] },
       { id: 'settings', label: 'Settings', icon: '⚙️', roles: ['admin'] }
-    ];
+    ].filter(i => i.roles.includes(role));
+  },
+
+  buildNav() {
+    const items = this.navItems();
+    const nav = document.getElementById('sidebar-nav');
     nav.innerHTML = items
-      .filter(i => i.roles.includes(role))
-      .map(i => `<button class="nav-item" data-page="${i.id}">${i.icon} ${i.label}</button>`)
+      .map(i => `<button class="nav-item" data-page="${i.id}"><span>${i.icon}</span> ${i.label}</button>`)
       .join('');
     nav.querySelectorAll('.nav-item').forEach(btn => {
       btn.addEventListener('click', () => this.navigate(btn.dataset.page));
     });
+
+    // Mobile bottom nav — max 5 primary items
+    const bottom = document.getElementById('bottom-nav');
+    if (bottom) {
+      const primary = items.filter(i => i.bottom).slice(0, 5);
+      // Always offer "More" via sidebar if needed
+      bottom.innerHTML = primary.map(i =>
+        `<button class="bottom-nav-item" data-page="${i.id}">
+          <span class="nav-icon">${i.icon}</span>
+          <span>${i.label}</span>
+        </button>`
+      ).join('') + (items.length > primary.length
+        ? `<button class="bottom-nav-item" data-page="__more">
+            <span class="nav-icon">☰</span><span>More</span>
+          </button>`
+        : '');
+      bottom.querySelectorAll('.bottom-nav-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (btn.dataset.page === '__more') {
+            document.getElementById('sidebar').classList.add('open');
+            document.getElementById('sidebar-backdrop')?.classList.add('show');
+          } else {
+            this.navigate(btn.dataset.page);
+          }
+        });
+      });
+    }
   },
 
   navigate(page) {
     this.currentPage = page;
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
+    document.querySelectorAll('.nav-item, .bottom-nav-item').forEach(n => {
+      n.classList.toggle('active', n.dataset.page === page);
+    });
     document.getElementById('page-title').textContent = {
       dashboard: 'Dashboard',
       pos: 'Point of Sale',
-      products: 'Product Management',
+      products: 'Products',
       customers: 'Customers',
       suppliers: 'Suppliers',
-      invoices: 'Invoice History',
-      reports: 'Reports & Analytics',
-      users: 'User Management',
-      settings: 'Settings & Branding'
+      invoices: 'Invoices',
+      barcodes: 'Barcode Labels',
+      returns: 'Sales Returns',
+      stockin: 'Stock Receive',
+      reports: 'Reports',
+      users: 'Users',
+      settings: 'Settings'
     }[page] || page;
 
     const area = document.getElementById('content-area');
     area.innerHTML = '';
     if (this.pages[page]) this.pages[page](area);
-    // Close mobile sidebar
-    document.getElementById('sidebar').classList.remove('open');
+    this.closeSidebar();
+    window.scrollTo(0, 0);
+  },
+
+  closeSidebar() {
+    document.getElementById('sidebar')?.classList.remove('open');
+    document.getElementById('sidebar-backdrop')?.classList.remove('show');
   },
 
   bindGlobal() {
-    // Login form
     document.getElementById('login-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const user = document.getElementById('login-user').value.trim();
@@ -219,9 +279,14 @@ const App = {
       this.showLogin();
     });
 
-    document.getElementById('menu-toggle').addEventListener('click', () => {
-      document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('menu-toggle')?.addEventListener('click', () => {
+      const sb = document.getElementById('sidebar');
+      const bd = document.getElementById('sidebar-backdrop');
+      sb.classList.toggle('open');
+      bd?.classList.toggle('show', sb.classList.contains('open'));
     });
+
+    document.getElementById('sidebar-backdrop')?.addEventListener('click', () => this.closeSidebar());
   }
 };
 
@@ -301,16 +366,29 @@ App.pages.pos = function (el) {
   let selectedCustomer = Store.customers.find(c => c.name === 'Walk-in Customer') || Store.customers[0];
   let cartDiscount = 0;
   let paymentType = 'Cash';
+  let categoryFilter = '';
+  let cashTendered = '';
+  let saleNote = '';
+
+  const categories = [...new Set(Store.products.map(p => p.category).filter(Boolean))].sort();
 
   function render() {
     const totals = Store.cartTotals();
     const grand = Math.max(0, totals.total - cartDiscount);
+    const change = cashTendered !== '' ? Math.max(0, parseFloat(cashTendered) - grand) : null;
     el.innerHTML = `
       <div class="pos-layout">
         <div class="pos-products">
           <div class="pos-search">
-            <input type="text" id="pos-search" placeholder="Search name, SKU or scan barcode..." autofocus>
-            <button class="btn btn-outline btn-sm" id="btn-scan">📷 Scan</button>
+            <input type="text" id="pos-search" placeholder="Search / barcode..." autofocus>
+            <button class="btn btn-outline btn-sm" id="btn-scan">📷</button>
+          </div>
+          <div style="display:flex;gap:0.35rem;flex-wrap:wrap;margin-bottom:0.65rem;align-items:center">
+            <button class="btn btn-sm ${categoryFilter === '' ? 'btn-primary' : 'btn-outline'}" data-cat="">All</button>
+            ${categories.map(cat => `<button class="btn btn-sm ${categoryFilter === cat ? 'btn-primary' : 'btn-outline'}" data-cat="${cat}">${cat}</button>`).join('')}
+            <button class="btn btn-sm ${Store.priceMode === 'wholesale' ? 'btn-warning' : 'btn-outline'}" id="btn-price-mode" style="margin-left:auto">
+              ${Store.priceMode === 'wholesale' ? 'Wholesale' : 'Retail'}
+            </button>
           </div>
           <div id="scanner-box" class="scanner-area hidden">
             <div id="qr-reader" style="width:100%"></div>
@@ -319,7 +397,13 @@ App.pages.pos = function (el) {
           <div class="product-grid" id="product-grid"></div>
         </div>
         <div class="pos-cart">
-          <div class="cart-header">Cart <span class="text-muted" id="cart-count">(${Store.cart.length})</span></div>
+          <div class="cart-header">
+            <span>Cart <span class="text-muted" id="cart-count">(${Store.cart.length})</span></span>
+            <span>
+              <button class="btn btn-outline btn-sm" id="btn-hold" ${Store.cart.length === 0 ? 'disabled' : ''}>Hold</button>
+              <button class="btn btn-outline btn-sm" id="btn-holds">${Store.heldCarts.length ? 'Held (' + Store.heldCarts.length + ')' : 'Held'}</button>
+            </span>
+          </div>
           <div class="cart-items" id="cart-items"></div>
           <div class="cart-footer">
             <div class="form-group mb-1">
@@ -332,18 +416,29 @@ App.pages.pos = function (el) {
             <div class="cart-row"><span>Discount</span><span id="c-disc">${Utils.formatMoney(totals.discount + cartDiscount, Store.config.currencySymbol)}</span></div>
             <div class="cart-row"><span>${Store.config.taxLabel || 'Tax'}</span><span id="c-tax">${Utils.formatMoney(totals.tax, Store.config.currencySymbol)}</span></div>
             <div class="cart-row total"><span>Total</span><span id="c-total">${Utils.formatMoney(grand, Store.config.currencySymbol)}</span></div>
-            <div class="form-group mt-1">
-              <label>Bill Discount (flat)</label>
-              <input type="number" id="cart-discount" value="${cartDiscount}" min="0" step="0.01">
+            <div class="form-row" style="margin-top:0.5rem">
+              <div class="form-group"><label>Bill discount</label>
+                <input type="number" id="cart-discount" value="${cartDiscount}" min="0" step="0.01">
+              </div>
+              <div class="form-group"><label>Cash tendered</label>
+                <input type="number" id="cash-tendered" value="${cashTendered}" min="0" step="0.01" placeholder="0">
+              </div>
+            </div>
+            <div class="cart-row" id="change-row" style="${change === null ? 'display:none' : ''}">
+              <span>Change due</span><span id="c-change" class="text-success"><strong>${change !== null ? Utils.formatMoney(change, Store.config.currencySymbol) : ''}</strong></span>
             </div>
             <div class="form-group">
-              <label>Payment Type</label>
+              <label>Payment</label>
               <select id="payment-type">
                 <option value="Cash" ${paymentType === 'Cash' ? 'selected' : ''}>Cash</option>
                 <option value="Credit" ${paymentType === 'Credit' ? 'selected' : ''}>Credit / Udhar</option>
                 <option value="Bank Transfer" ${paymentType === 'Bank Transfer' ? 'selected' : ''}>Bank Transfer</option>
                 <option value="Digital Wallet" ${paymentType === 'Digital Wallet' ? 'selected' : ''}>Digital Wallet</option>
               </select>
+            </div>
+            <div class="form-group">
+              <label>Note (optional)</label>
+              <input type="text" id="sale-note" value="${saleNote}" placeholder="e.g. Gift wrap">
             </div>
             <div class="cart-actions">
               <button class="btn btn-outline" id="btn-clear-cart">Clear</button>
@@ -361,18 +456,22 @@ App.pages.pos = function (el) {
   function renderProducts(filter = '') {
     const q = filter.toLowerCase();
     const list = Store.products.filter(p => p.active !== false && p.stock > 0 && (
-      !q || p.name.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q) || (p.barcode || '').includes(q)
+      (!categoryFilter || p.category === categoryFilter) &&
+      (!q || p.name.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q) || (p.barcode || '').includes(q))
     ));
     const grid = document.getElementById('product-grid');
     if (!grid) return;
     grid.innerHTML = list.length === 0
       ? '<div class="empty-state">No products found</div>'
-      : list.map(p => `
+      : list.map(p => {
+          const price = Store.unitPrice(p);
+          return `
         <div class="product-tile" data-id="${p.id}">
           <div class="name">${p.name}</div>
-          <div class="price">${Utils.formatMoney(p.sellingPrice, Store.config.currencySymbol)}</div>
+          <div class="price">${Utils.formatMoney(price, Store.config.currencySymbol)}</div>
           <div class="stock">Stock: ${p.stock}</div>
-        </div>`).join('');
+        </div>`;
+        }).join('');
     grid.querySelectorAll('.product-tile').forEach(t => {
       t.addEventListener('click', () => {
         const prod = Store.getProduct(t.dataset.id);
@@ -427,6 +526,8 @@ App.pages.pos = function (el) {
   function updateTotals() {
     cartDiscount = parseFloat(document.getElementById('cart-discount')?.value) || 0;
     paymentType = document.getElementById('payment-type')?.value || 'Cash';
+    cashTendered = document.getElementById('cash-tendered')?.value ?? cashTendered;
+    saleNote = document.getElementById('sale-note')?.value ?? saleNote;
     const totals = Store.cartTotals();
     const grand = Math.max(0, totals.total - cartDiscount);
     const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
@@ -434,6 +535,13 @@ App.pages.pos = function (el) {
     set('c-disc', Utils.formatMoney(totals.discount + cartDiscount, Store.config.currencySymbol));
     set('c-tax', Utils.formatMoney(totals.tax, Store.config.currencySymbol));
     set('c-total', Utils.formatMoney(grand, Store.config.currencySymbol));
+    const row = document.getElementById('change-row');
+    const ch = document.getElementById('c-change');
+    if (cashTendered !== '' && cashTendered !== null) {
+      const change = Math.max(0, parseFloat(cashTendered) - grand);
+      if (row) row.style.display = '';
+      if (ch) ch.innerHTML = '<strong>' + Utils.formatMoney(change, Store.config.currencySymbol) + '</strong>';
+    } else if (row) row.style.display = 'none';
     const btn = document.getElementById('btn-checkout');
     if (btn) btn.disabled = Store.cart.length === 0;
   }
@@ -476,7 +584,60 @@ App.pages.pos = function (el) {
     document.getElementById('btn-clear-cart')?.addEventListener('click', () => {
       Store.clearCart();
       cartDiscount = 0;
+      cashTendered = '';
+      saleNote = '';
       render();
+    });
+
+    document.getElementById('cash-tendered')?.addEventListener('input', updateTotals);
+    document.getElementById('sale-note')?.addEventListener('input', e => { saleNote = e.target.value; });
+
+    document.querySelectorAll('[data-cat]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        categoryFilter = btn.dataset.cat || '';
+        render();
+      });
+    });
+
+    document.getElementById('btn-price-mode')?.addEventListener('click', () => {
+      Store.priceMode = Store.priceMode === 'wholesale' ? 'retail' : 'wholesale';
+      Utils.toast(Store.priceMode === 'wholesale' ? 'Wholesale prices' : 'Retail prices', 'info');
+      render();
+    });
+
+    document.getElementById('btn-hold')?.addEventListener('click', () => {
+      const label = prompt('Hold name (optional)', 'Hold ' + new Date().toLocaleTimeString());
+      if (label === null) return;
+      Store.holdCart(label || undefined);
+      cartDiscount = 0;
+      Utils.toast('Cart held', 'success');
+      render();
+    });
+
+    document.getElementById('btn-holds')?.addEventListener('click', () => {
+      if (!Store.heldCarts.length) { Utils.toast('No held carts', 'info'); return; }
+      const list = Store.heldCarts.map(h =>
+        `<div class="mobile-list-item">
+          <div class="row-top"><div class="item-title">${h.label}</div>
+          <div class="item-meta">${Utils.formatDateTime(h.createdAt)} · ${h.cart.length} items</div></div>
+          <div class="item-actions">
+            <button class="btn btn-primary btn-sm" data-resume="${h.id}">Resume</button>
+            <button class="btn btn-danger btn-sm" data-delhold="${h.id}">Delete</button>
+          </div>
+        </div>`).join('');
+      ensureModal('holds-modal', 'Held carts', list, null, true);
+      openModal('holds-modal');
+      document.querySelectorAll('[data-resume]').forEach(b => b.onclick = () => {
+        Store.resumeHold(b.dataset.resume);
+        closeModal('holds-modal');
+        render();
+        Utils.toast('Cart resumed', 'success');
+      });
+      document.querySelectorAll('[data-delhold]').forEach(b => b.onclick = () => {
+        Store.deleteHold(b.dataset.delhold);
+        closeModal('holds-modal');
+        render();
+      });
     });
 
     document.getElementById('btn-checkout')?.addEventListener('click', completeSale);
@@ -563,6 +724,9 @@ App.pages.pos = function (el) {
       tax: totals.tax,
       total: grand,
       paymentType: payType,
+      cashTendered: parseFloat(document.getElementById('cash-tendered')?.value) || null,
+      note: (document.getElementById('sale-note')?.value || '').trim(),
+      priceMode: Store.priceMode,
       cashierId: Store.currentUser.id,
       cashierName: Store.currentUser.name,
       createdAt: new Date().toISOString(),
@@ -621,8 +785,9 @@ App.pages.pos = function (el) {
         <div style="text-align:center;font-size:10px">${c.footnote || 'Thank you!'}</div>
       </div>
       <div class="modal-footer no-print">
-        <button class="btn btn-outline" onclick="document.getElementById('receipt-modal').classList.remove('open')">Close</button>
-        <button class="btn btn-primary" onclick="window.print()">🖨️ Print Receipt</button>
+        <button class="btn btn-outline" data-close-receipt>Close</button>
+        <button class="btn btn-outline" data-pdf-receipt>📄 PDF</button>
+        <button class="btn btn-primary" onclick="window.print()">🖨️ Print</button>
       </div>
     `;
     let modal = document.getElementById('receipt-modal');
@@ -630,11 +795,13 @@ App.pages.pos = function (el) {
       modal = document.createElement('div');
       modal.id = 'receipt-modal';
       modal.className = 'modal-overlay';
-      modal.innerHTML = `<div class="modal"><div class="modal-header"><h3>Receipt</h3><button class="modal-close" onclick="this.closest('.modal-overlay').classList.remove('open')">&times;</button></div><div class="modal-body" id="receipt-body"></div></div>`;
+      modal.innerHTML = `<div class="modal"><div class="modal-header"><h3>Receipt</h3><button class="modal-close" data-close-receipt>&times;</button></div><div class="modal-body" id="receipt-body"></div></div>`;
       document.body.appendChild(modal);
     }
     document.getElementById('receipt-body').innerHTML = html;
     modal.classList.add('open');
+    modal.querySelectorAll('[data-close-receipt]').forEach(b => b.onclick = () => modal.classList.remove('open'));
+    modal.querySelector('[data-pdf-receipt]')?.addEventListener('click', () => exportInvoicePdf(inv));
   }
 
   render();
@@ -648,12 +815,13 @@ App.pages.products = function (el) {
       <div class="card">
         <div class="card-header">
           <h3>Products (${Store.products.length})</h3>
-          <div class="flex gap-1">
-            <input type="text" id="prod-search" placeholder="Search..." style="width:180px">
-            ${canEdit ? '<button class="btn btn-primary btn-sm" id="btn-add-prod">+ Add Product</button>' : ''}
+          <div class="flex gap-1" style="flex-wrap:wrap;width:100%;justify-content:flex-end">
+            <input type="text" id="prod-search" class="toolbar-search" placeholder="Search name, SKU, barcode..." style="max-width:220px">
+            ${canEdit ? '<button class="btn btn-primary btn-sm" id="btn-add-prod">+ Add</button>' : ''}
           </div>
         </div>
-        <div class="table-wrap">
+        <div class="mobile-list mobile-only" id="prod-mobile"></div>
+        <div class="table-wrap desktop-only">
           <table>
             <thead>
               <tr>
@@ -678,32 +846,60 @@ App.pages.products = function (el) {
       !q || p.name.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q) || (p.barcode || '').includes(q)
     );
     const tbody = document.getElementById('prod-tbody');
-    if (!tbody) return;
-    tbody.innerHTML = list.map(p => {
-      const nearest = (p.batches || []).map(b => Utils.daysUntil(b.expiryDate)).filter(d => d !== null).sort((a, b) => a - b)[0];
-      return `<tr>
-        <td>${p.sku || '—'}</td>
-        <td>${p.barcode || '—'}</td>
-        <td>${p.name}</td>
-        <td>${p.category || '—'}</td>
-        ${Store.hasRole('admin') ? `<td>${Utils.formatMoney(p.costPrice, Store.config.currencySymbol)}</td>` : ''}
-        <td>${Utils.formatMoney(p.sellingPrice, Store.config.currencySymbol)}</td>
-        <td class="${p.stock <= (p.lowStockThreshold || 10) ? 'text-danger' : ''}">${p.stock}</td>
-        <td>${nearest !== undefined ? `<span class="badge ${Utils.expiryClass(nearest)}">${nearest < 0 ? 'EXP' : nearest + 'd'}</span>` : '—'}</td>
-        <td>
-          <button class="btn btn-outline btn-sm" data-edit="${p.id}">Edit</button>
-          ${Store.hasRole('admin') ? `<button class="btn btn-danger btn-sm" data-del="${p.id}">Del</button>` : ''}
-        </td>
-      </tr>`;
-    }).join('');
-    tbody.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openProductModal(b.dataset.edit)));
-    tbody.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
-      if (!confirm('Delete this product?')) return;
-      Store.products = Store.products.filter(p => p.id !== b.dataset.del);
-      await Store.save('products');
-      render();
-      Utils.toast('Product deleted', 'success');
-    }));
+    const mobile = document.getElementById('prod-mobile');
+    const bindActions = (root) => {
+      root.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openProductModal(b.dataset.edit)));
+      root.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Delete this product?')) return;
+        Store.products = Store.products.filter(p => p.id !== b.dataset.del);
+        await Store.save('products');
+        render();
+        Utils.toast('Product deleted', 'success');
+      }));
+    };
+    if (tbody) {
+      tbody.innerHTML = list.map(p => {
+        const nearest = (p.batches || []).map(b => Utils.daysUntil(b.expiryDate)).filter(d => d !== null).sort((a, b) => a - b)[0];
+        return `<tr>
+          <td>${p.sku || '—'}</td>
+          <td>${p.barcode || '—'}</td>
+          <td>${p.name}</td>
+          <td>${p.category || '—'}</td>
+          ${Store.hasRole('admin') ? `<td>${Utils.formatMoney(p.costPrice, Store.config.currencySymbol)}</td>` : ''}
+          <td>${Utils.formatMoney(p.sellingPrice, Store.config.currencySymbol)}</td>
+          <td class="${p.stock <= (p.lowStockThreshold || 10) ? 'text-danger' : ''}">${p.stock}</td>
+          <td>${nearest !== undefined ? `<span class="badge ${Utils.expiryClass(nearest)}">${nearest < 0 ? 'EXP' : nearest + 'd'}</span>` : '—'}</td>
+          <td>
+            <button class="btn btn-outline btn-sm" data-edit="${p.id}">Edit</button>
+            ${Store.hasRole('admin') ? `<button class="btn btn-danger btn-sm" data-del="${p.id}">Del</button>` : ''}
+          </td>
+        </tr>`;
+      }).join('');
+      bindActions(tbody);
+    }
+    if (mobile) {
+      mobile.innerHTML = list.length === 0 ? '<div class="empty-state">No products</div>' : list.map(p => {
+        const nearest = (p.batches || []).map(b => Utils.daysUntil(b.expiryDate)).filter(d => d !== null).sort((a, b) => a - b)[0];
+        return `<div class="mobile-list-item">
+          <div class="row-top">
+            <div>
+              <div class="item-title">${p.name}</div>
+              <div class="item-meta">${p.sku || ''} ${p.barcode ? '· ' + p.barcode : ''} · ${p.category || '—'}</div>
+            </div>
+            <div style="text-align:right">
+              <strong>${Utils.formatMoney(p.sellingPrice, Store.config.currencySymbol)}</strong>
+              <div class="${p.stock <= (p.lowStockThreshold || 10) ? 'text-danger' : 'text-muted'}" style="font-size:0.75rem">Stock: ${p.stock}</div>
+              ${nearest !== undefined ? `<span class="badge ${Utils.expiryClass(nearest)}">${nearest < 0 ? 'EXP' : nearest + 'd'}</span>` : ''}
+            </div>
+          </div>
+          <div class="item-actions">
+            <button class="btn btn-outline btn-sm" data-edit="${p.id}">Edit</button>
+            ${Store.hasRole('admin') ? `<button class="btn btn-danger btn-sm" data-del="${p.id}">Delete</button>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+      bindActions(mobile);
+    }
   }
 
   function openProductModal(id) {
@@ -782,9 +978,10 @@ App.pages.customers = function (el) {
       <div class="card">
         <div class="card-header">
           <h3>Customers (${Store.customers.length})</h3>
-          <button class="btn btn-primary btn-sm" id="btn-add-cust">+ Add Customer</button>
+          <button class="btn btn-primary btn-sm" id="btn-add-cust">+ Add</button>
         </div>
-        <div class="table-wrap">
+        <div class="mobile-list mobile-only" id="cust-mobile"></div>
+        <div class="table-wrap desktop-only">
           <table>
             <thead><tr><th>Name</th><th>Phone</th><th>Address</th><th>NTN</th><th>Credit (Udhar)</th><th></th></tr></thead>
             <tbody id="cust-tbody"></tbody>
@@ -793,20 +990,42 @@ App.pages.customers = function (el) {
       </div>
     `;
     const tbody = document.getElementById('cust-tbody');
-    tbody.innerHTML = Store.customers.map(c => `
-      <tr>
-        <td>${c.name}</td>
-        <td>${c.phone || '—'}</td>
-        <td>${c.address || '—'}</td>
-        <td>${c.ntn || '—'}</td>
-        <td class="${c.creditBalance > 0 ? 'text-danger' : ''}">${Utils.formatMoney(c.creditBalance || 0, Store.config.currencySymbol)}</td>
-        <td>
-          <button class="btn btn-outline btn-sm" data-edit="${c.id}">Edit</button>
-          ${c.creditBalance > 0 ? `<button class="btn btn-success btn-sm" data-pay="${c.id}">Receive Payment</button>` : ''}
-        </td>
-      </tr>`).join('');
-    tbody.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openCustModal(b.dataset.edit)));
-    tbody.querySelectorAll('[data-pay]').forEach(b => b.addEventListener('click', () => receivePayment(b.dataset.pay)));
+    const mobile = document.getElementById('cust-mobile');
+    const rows = Store.customers;
+    if (tbody) {
+      tbody.innerHTML = rows.map(c => `
+        <tr>
+          <td>${c.name}</td>
+          <td>${c.phone || '—'}</td>
+          <td>${c.address || '—'}</td>
+          <td>${c.ntn || '—'}</td>
+          <td class="${c.creditBalance > 0 ? 'text-danger' : ''}">${Utils.formatMoney(c.creditBalance || 0, Store.config.currencySymbol)}</td>
+          <td>
+            <button class="btn btn-outline btn-sm" data-edit="${c.id}">Edit</button>
+            ${c.creditBalance > 0 ? `<button class="btn btn-success btn-sm" data-pay="${c.id}">Receive</button>` : ''}
+          </td>
+        </tr>`).join('');
+    }
+    if (mobile) {
+      mobile.innerHTML = rows.map(c => `
+        <div class="mobile-list-item">
+          <div class="row-top">
+            <div>
+              <div class="item-title">${c.name}</div>
+              <div class="item-meta">${c.phone || 'No phone'} ${c.address ? '· ' + c.address : ''}</div>
+            </div>
+            <div class="${c.creditBalance > 0 ? 'text-danger' : 'text-muted'}" style="font-weight:700;font-size:0.9rem">
+              ${Utils.formatMoney(c.creditBalance || 0, Store.config.currencySymbol)}
+            </div>
+          </div>
+          <div class="item-actions">
+            <button class="btn btn-outline btn-sm" data-edit="${c.id}">Edit</button>
+            ${c.creditBalance > 0 ? `<button class="btn btn-success btn-sm" data-pay="${c.id}">Receive Payment</button>` : ''}
+          </div>
+        </div>`).join('');
+    }
+    el.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openCustModal(b.dataset.edit)));
+    el.querySelectorAll('[data-pay]').forEach(b => b.addEventListener('click', () => receivePayment(b.dataset.pay)));
     document.getElementById('btn-add-cust').addEventListener('click', () => openCustModal());
   }
 
@@ -933,57 +1152,371 @@ App.pages.suppliers = function (el) {
 
 /* ========== PAGE: Invoices ========== */
 App.pages.invoices = function (el) {
+  const list = Store.invoices;
   el.innerHTML = `
     <div class="card">
-      <div class="card-header"><h3>Invoice History (${Store.invoices.length})</h3></div>
-      <div class="table-wrap">
+      <div class="card-header">
+        <h3>Invoices (${list.length})</h3>
+        <input type="text" class="toolbar-search" id="inv-search" placeholder="Search invoice # or customer..." style="max-width:220px">
+      </div>
+      <!-- Mobile cards -->
+      <div class="mobile-list mobile-only" id="inv-mobile"></div>
+      <!-- Desktop table -->
+      <div class="table-wrap desktop-only">
         <table>
           <thead><tr><th>#</th><th>Date</th><th>Customer</th><th>Cashier</th><th>Payment</th><th>Total</th><th></th></tr></thead>
-          <tbody>
-            ${Store.invoices.length === 0 ? '<tr><td colspan="7" class="text-center text-muted">No invoices yet</td></tr>' :
-              Store.invoices.map(inv => `
-                <tr>
-                  <td>${inv.number}</td>
-                  <td>${Utils.formatDateTime(inv.createdAt)}</td>
-                  <td>${inv.customerName}</td>
-                  <td>${inv.cashierName}</td>
-                  <td><span class="badge badge-info">${inv.paymentType}</span></td>
-                  <td>${Utils.formatMoney(inv.total, Store.config.currencySymbol)}</td>
-                  <td><button class="btn btn-outline btn-sm" data-view="${inv.id}">View</button></td>
-                </tr>`).join('')}
-          </tbody>
+          <tbody id="inv-tbody"></tbody>
         </table>
       </div>
     </div>
   `;
-  el.querySelectorAll('[data-view]').forEach(b => {
-    b.addEventListener('click', () => {
-      const inv = Store.invoices.find(i => i.id === b.dataset.view);
-      if (!inv) return;
-      // Reuse receipt view
-      const c = Store.config;
-      ensureModal('inv-view', inv.number, `
-        <p><strong>Date:</strong> ${Utils.formatDateTime(inv.createdAt)}</p>
-        <p><strong>Customer:</strong> ${inv.customerName}</p>
-        <p><strong>Cashier:</strong> ${inv.cashierName}</p>
-        <p><strong>Payment:</strong> ${inv.paymentType}</p>
-        <div class="table-wrap mt-1"><table>
-          <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Amount</th></tr></thead>
-          <tbody>${inv.items.map(i => `<tr>
-            <td>${i.name}</td><td>${i.qty}</td>
-            <td>${Utils.formatMoney(i.price, c.currencySymbol)}</td>
-            <td>${Utils.formatMoney(i.price * i.qty - (i.discount || 0), c.currencySymbol)}</td>
-          </tr>`).join('')}</tbody>
-        </table></div>
-        <div class="mt-1 text-right">
-          <div>Subtotal: ${Utils.formatMoney(inv.subtotal, c.currencySymbol)}</div>
-          <div>Discount: ${Utils.formatMoney(inv.itemDiscount + inv.billDiscount, c.currencySymbol)}</div>
-          <div>${c.taxLabel || 'Tax'}: ${Utils.formatMoney(inv.tax, c.currencySymbol)}</div>
-          <div><strong>Total: ${Utils.formatMoney(inv.total, c.currencySymbol)}</strong></div>
-        </div>
-      `, null, true);
-      openModal('inv-view');
+
+  function draw(filter = '') {
+    const q = filter.toLowerCase();
+    const rows = list.filter(inv =>
+      !q || (inv.number || '').toLowerCase().includes(q) || (inv.customerName || '').toLowerCase().includes(q)
+    );
+    const tbody = document.getElementById('inv-tbody');
+    const mobile = document.getElementById('inv-mobile');
+    if (rows.length === 0) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No invoices</td></tr>';
+      if (mobile) mobile.innerHTML = '<div class="empty-state">No invoices yet</div>';
+      return;
+    }
+    if (tbody) {
+      tbody.innerHTML = rows.map(inv => `
+        <tr>
+          <td>${inv.number}</td>
+          <td>${Utils.formatDateTime(inv.createdAt)}</td>
+          <td>${inv.customerName}</td>
+          <td>${inv.cashierName}</td>
+          <td><span class="badge badge-info">${inv.paymentType}</span></td>
+          <td>${Utils.formatMoney(inv.total, Store.config.currencySymbol)}</td>
+          <td>
+            <button class="btn btn-outline btn-sm" data-view="${inv.id}">View</button>
+            <button class="btn btn-outline btn-sm" data-pdf="${inv.id}">PDF</button>
+          </td>
+        </tr>`).join('');
+    }
+    if (mobile) {
+      mobile.innerHTML = rows.map(inv => `
+        <div class="mobile-list-item">
+          <div class="row-top">
+            <div>
+              <div class="item-title">${inv.number}</div>
+              <div class="item-meta">${Utils.formatDateTime(inv.createdAt)} · ${inv.customerName}</div>
+            </div>
+            <div style="text-align:right">
+              <strong>${Utils.formatMoney(inv.total, Store.config.currencySymbol)}</strong>
+              <div><span class="badge badge-info">${inv.paymentType}</span></div>
+            </div>
+          </div>
+          <div class="item-actions">
+            <button class="btn btn-outline btn-sm" data-view="${inv.id}">View</button>
+            <button class="btn btn-outline btn-sm" data-pdf="${inv.id}">📄 PDF</button>
+          </div>
+        </div>`).join('');
+    }
+    el.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => viewInvoice(b.dataset.view)));
+    el.querySelectorAll('[data-pdf]').forEach(b => b.addEventListener('click', () => {
+      const inv = Store.invoices.find(i => i.id === b.dataset.pdf);
+      if (inv) exportInvoicePdf(inv);
+    }));
+  }
+
+  function viewInvoice(id) {
+    const inv = Store.invoices.find(i => i.id === id);
+    if (!inv) return;
+    const c = Store.config;
+    ensureModal('inv-view', inv.number, `
+      <p><strong>Date:</strong> ${Utils.formatDateTime(inv.createdAt)}</p>
+      <p><strong>Customer:</strong> ${inv.customerName}</p>
+      <p><strong>Cashier:</strong> ${inv.cashierName}</p>
+      <p><strong>Payment:</strong> ${inv.paymentType}</p>
+      <div class="table-wrap mt-1"><table>
+        <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Amount</th></tr></thead>
+        <tbody>${inv.items.map(i => `<tr>
+          <td>${i.name}</td><td>${i.qty}</td>
+          <td>${Utils.formatMoney(i.price, c.currencySymbol)}</td>
+          <td>${Utils.formatMoney(i.price * i.qty - (i.discount || 0), c.currencySymbol)}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+      <div class="mt-1 text-right">
+        <div>Subtotal: ${Utils.formatMoney(inv.subtotal, c.currencySymbol)}</div>
+        <div>Discount: ${Utils.formatMoney(inv.itemDiscount + inv.billDiscount, c.currencySymbol)}</div>
+        <div>${c.taxLabel || 'Tax'}: ${Utils.formatMoney(inv.tax, c.currencySymbol)}</div>
+        <div><strong>Total: ${Utils.formatMoney(inv.total, c.currencySymbol)}</strong></div>
+      </div>
+      <div class="mt-2 flex gap-1">
+        <button class="btn btn-primary btn-sm" id="inv-pdf-btn">📄 Download PDF</button>
+        <button class="btn btn-outline btn-sm" onclick="window.print()">🖨️ Print</button>
+      </div>
+    `, null, true);
+    openModal('inv-view');
+    document.getElementById('inv-pdf-btn')?.addEventListener('click', () => exportInvoicePdf(inv));
+  }
+
+  draw();
+  document.getElementById('inv-search')?.addEventListener('input', Utils.debounce(e => draw(e.target.value), 200));
+};
+
+
+/* ========== PAGE: Returns ========== */
+App.pages.returns = function (el) {
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-header"><h3>Sales return</h3></div>
+      <p class="text-muted mb-1" style="font-size:0.85rem">Select a completed invoice, choose items to return, stock is restored.</p>
+      <div class="form-group">
+        <label>Invoice</label>
+        <select id="ret-inv">
+          <option value="">— Select invoice —</option>
+          ${Store.invoices.filter(i => i.status === 'completed').slice(0, 50).map(i =>
+            `<option value="${i.id}">${i.number} · ${i.customerName} · ${Utils.formatMoney(i.total, Store.config.currencySymbol)}</option>`
+          ).join('')}
+        </select>
+      </div>
+      <div id="ret-items"></div>
+      <button class="btn btn-primary mt-1" id="btn-do-return" disabled>Process Return</button>
+    </div>`;
+
+  let selected = null;
+  document.getElementById('ret-inv').onchange = (e) => {
+    selected = Store.invoices.find(i => i.id === e.target.value);
+    const box = document.getElementById('ret-items');
+    const btn = document.getElementById('btn-do-return');
+    if (!selected) { box.innerHTML = ''; btn.disabled = true; return; }
+    box.innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th></th><th>Item</th><th>Sold</th><th>Return qty</th></tr></thead>
+      <tbody>${selected.items.map((it, idx) => `
+        <tr>
+          <td><input type="checkbox" data-idx="${idx}" class="ret-check"></td>
+          <td>${it.name}</td>
+          <td>${it.qty}</td>
+          <td><input type="number" class="ret-qty" data-idx="${idx}" min="1" max="${it.qty}" value="${it.qty}" style="width:70px"></td>
+        </tr>`).join('')}</tbody></table></div>`;
+    btn.disabled = false;
+  };
+
+  document.getElementById('btn-do-return').onclick = async () => {
+    if (!selected) return;
+    const checks = [...document.querySelectorAll('.ret-check:checked')];
+    if (!checks.length) { Utils.toast('Select at least one item', 'warning'); return; }
+    let refund = 0;
+    checks.forEach(ch => {
+      const idx = parseInt(ch.dataset.idx, 10);
+      const it = selected.items[idx];
+      const qty = Math.min(it.qty, parseInt(document.querySelector(`.ret-qty[data-idx="${idx}"]`).value) || 0);
+      if (qty <= 0) return;
+      const p = Store.getProduct(it.productId);
+      if (p) p.stock += qty;
+      refund += (it.price * qty) - ((it.discount || 0) * (qty / it.qty));
     });
+    if (selected.paymentType === 'Credit') {
+      const cust = Store.customers.find(c => c.id === selected.customerId);
+      if (cust) cust.creditBalance = Math.max(0, (cust.creditBalance || 0) - refund);
+    }
+    selected.status = 'returned';
+    selected.returnAt = new Date().toISOString();
+    selected.refundAmount = refund;
+    await Store.save('products');
+    await Store.save('customers');
+    await Store.save('invoices');
+    Utils.toast('Return processed · refund ' + Utils.formatMoney(refund, Store.config.currencySymbol), 'success');
+    App.navigate('returns');
+  };
+};
+
+/* ========== PAGE: Stock Receive ========== */
+App.pages.stockin = function (el) {
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-header"><h3>Receive stock</h3></div>
+      <div class="form-group">
+        <label>Product</label>
+        <select id="si-prod">
+          <option value="">— Select —</option>
+          ${Store.products.filter(p => p.active !== false).map(p =>
+            `<option value="${p.id}">${p.name} (stock ${p.stock})</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Quantity</label><input type="number" id="si-qty" min="1" value="1"></div>
+        <div class="form-group"><label>Cost price (optional)</label><input type="number" id="si-cost" step="0.01" placeholder="Keep current"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Lot / batch</label><input id="si-lot" placeholder="Optional"></div>
+        <div class="form-group"><label>Expiry</label><input type="date" id="si-exp"></div>
+      </div>
+      <div class="form-group">
+        <label>Supplier</label>
+        <select id="si-supp">
+          <option value="">— Optional —</option>
+          ${Store.suppliers.map(s => `<option value="${s.id}">${s.companyName}</option>`).join('')}
+        </select>
+      </div>
+      <button class="btn btn-primary" id="btn-stockin">Add to stock</button>
+    </div>`;
+
+  document.getElementById('btn-stockin').onclick = async () => {
+    const id = document.getElementById('si-prod').value;
+    const qty = parseInt(document.getElementById('si-qty').value) || 0;
+    const p = Store.getProduct(id);
+    if (!p || qty <= 0) { Utils.toast('Select product and qty', 'warning'); return; }
+    p.stock += qty;
+    const cost = parseFloat(document.getElementById('si-cost').value);
+    if (!isNaN(cost) && cost > 0) p.costPrice = cost;
+    const lot = document.getElementById('si-lot').value.trim();
+    const exp = document.getElementById('si-exp').value;
+    if (lot || exp) {
+      if (!p.batches) p.batches = [];
+      p.batches.push({ lotNumber: lot || ('LOT-' + Date.now()), expiryDate: exp || null, quantity: qty });
+    }
+    await Store.save('products');
+    Utils.toast(`Added ${qty} to ${p.name}`, 'success');
+    App.navigate('stockin');
+  };
+};
+
+/* ========== PAGE: Barcode Labels ========== */
+App.pages.barcodes = function (el) {
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <h3>Barcode Label Generator</h3>
+      </div>
+      <p class="text-muted mb-1" style="font-size:0.85rem">Generate and print barcode stickers for products without manufacturer barcodes. Uses CODE128.</p>
+      <div class="form-group">
+        <label>Select product</label>
+        <select id="bc-product">
+          <option value="">— Choose product —</option>
+          ${Store.products.filter(p => p.active !== false).map(p =>
+            `<option value="${p.id}" data-code="${p.barcode || p.sku || ''}">${p.name} (${p.barcode || p.sku || 'no code'})</option>`
+          ).join('')}
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Barcode value</label>
+          <input id="bc-value" placeholder="Enter or auto-fill from product">
+        </div>
+        <div class="form-group">
+          <label>Label text (name)</label>
+          <input id="bc-label" placeholder="Product name on label">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Price on label</label>
+          <input id="bc-price" placeholder="e.g. Rs. 80">
+        </div>
+        <div class="form-group">
+          <label>Copies</label>
+          <input type="number" id="bc-copies" value="1" min="1" max="50">
+        </div>
+      </div>
+      <div class="flex gap-1 mb-1" style="flex-wrap:wrap">
+        <button class="btn btn-primary" id="bc-generate">Generate Preview</button>
+        <button class="btn btn-outline" id="bc-print">🖨️ Print Labels</button>
+        <button class="btn btn-outline" id="bc-random">Random Code</button>
+      </div>
+      <div id="bc-preview" class="barcode-preview hidden">
+        <svg id="bc-svg"></svg>
+        <div id="bc-meta" class="mt-1" style="font-size:0.85rem"></div>
+      </div>
+      <div id="barcode-print-area" class="label-sheet hidden"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>Quick labels — all products with barcodes</h3></div>
+      <button class="btn btn-outline btn-sm mb-1" id="bc-all">Generate sheet for all coded products</button>
+      <div id="bc-all-sheet" class="label-sheet"></div>
+    </div>
+  `;
+
+  document.getElementById('bc-product').addEventListener('change', (e) => {
+    const opt = e.target.selectedOptions[0];
+    const p = Store.getProduct(e.target.value);
+    if (!p) return;
+    document.getElementById('bc-value').value = p.barcode || p.sku || '';
+    document.getElementById('bc-label').value = p.name;
+    document.getElementById('bc-price').value = Utils.formatMoney(p.sellingPrice, Store.config.currencySymbol);
+  });
+
+  document.getElementById('bc-random').addEventListener('click', () => {
+    const code = '2' + String(Math.floor(Math.random() * 1e11)).padStart(11, '0');
+    document.getElementById('bc-value').value = code;
+  });
+
+  function drawBarcode(value, targetSvg) {
+    if (!window.JsBarcode) {
+      Utils.toast('Barcode library not loaded', 'warning');
+      return false;
+    }
+    try {
+      JsBarcode(targetSvg, value, {
+        format: 'CODE128',
+        width: 2,
+        height: 50,
+        displayValue: true,
+        fontSize: 14,
+        margin: 8
+      });
+      return true;
+    } catch (err) {
+      Utils.toast('Invalid barcode value', 'danger');
+      return false;
+    }
+  }
+
+  document.getElementById('bc-generate').addEventListener('click', () => {
+    const value = document.getElementById('bc-value').value.trim();
+    if (!value) { Utils.toast('Enter a barcode value', 'warning'); return; }
+    const preview = document.getElementById('bc-preview');
+    preview.classList.remove('hidden');
+    const ok = drawBarcode(value, '#bc-svg');
+    if (ok) {
+      document.getElementById('bc-meta').innerHTML =
+        `<strong>${document.getElementById('bc-label').value || value}</strong><br>${document.getElementById('bc-price').value || ''}`;
+    }
+  });
+
+  document.getElementById('bc-print').addEventListener('click', () => {
+    const value = document.getElementById('bc-value').value.trim();
+    const label = document.getElementById('bc-label').value.trim();
+    const price = document.getElementById('bc-price').value.trim();
+    const copies = Math.min(50, Math.max(1, parseInt(document.getElementById('bc-copies').value) || 1));
+    if (!value) { Utils.toast('Generate a barcode first', 'warning'); return; }
+    const area = document.getElementById('barcode-print-area');
+    area.classList.remove('hidden');
+    area.innerHTML = '';
+    for (let i = 0; i < copies; i++) {
+      const card = document.createElement('div');
+      card.className = 'label-card';
+      card.innerHTML = `<svg class="bc-print-svg"></svg><div style="font-size:11px;font-weight:bold;margin-top:2px">${label || value}</div><div style="font-size:12px">${price}</div>`;
+      area.appendChild(card);
+      try {
+        JsBarcode(card.querySelector('svg'), value, { format: 'CODE128', width: 1.5, height: 40, displayValue: true, fontSize: 11, margin: 4 });
+      } catch (_) {}
+    }
+    setTimeout(() => window.print(), 300);
+  });
+
+  document.getElementById('bc-all').addEventListener('click', () => {
+    const sheet = document.getElementById('bc-all-sheet');
+    sheet.innerHTML = '';
+    const coded = Store.products.filter(p => p.active !== false && (p.barcode || p.sku));
+    if (!coded.length) { Utils.toast('No products with barcodes', 'info'); return; }
+    coded.forEach(p => {
+      const code = p.barcode || p.sku;
+      const card = document.createElement('div');
+      card.className = 'label-card';
+      card.innerHTML = `<svg></svg><div style="font-size:11px;font-weight:bold">${p.name}</div><div style="font-size:12px">${Utils.formatMoney(p.sellingPrice, Store.config.currencySymbol)}</div>`;
+      sheet.appendChild(card);
+      try {
+        JsBarcode(card.querySelector('svg'), code, { format: 'CODE128', width: 1.5, height: 40, displayValue: true, fontSize: 11, margin: 4 });
+      } catch (_) {}
+    });
+    Utils.toast(`Generated ${coded.length} labels — use browser Print`, 'success');
   });
 };
 
@@ -1131,6 +1664,9 @@ App.pages.users = function (el) {
 /* ========== PAGE: Settings ========== */
 App.pages.settings = function (el) {
   const c = Store.config;
+  const v = c.vendor || {};
+  const gh = c.github || {};
+  const ghConfigured = !!(gh.owner && gh.repo && gh.token);
   el.innerHTML = `
     <div class="card">
       <div class="card-header"><h3>Store Branding</h3></div>
@@ -1148,34 +1684,40 @@ App.pages.settings = function (el) {
         <div class="form-group"><label>Currency Symbol</label><input id="cfg-sym" value="${c.currencySymbol || 'Rs.'}"></div>
         <div class="form-group"><label>Tax Label</label><input id="cfg-taxlabel" value="${c.taxLabel || 'GST'}"></div>
       </div>
-      <div class="form-group"><label>Logo (upload image → Base64)</label>
+      <div class="form-group"><label>Store logo</label>
         <input type="file" id="cfg-logo" accept="image/*">
-        ${c.logoBase64 ? '<img src="' + c.logoBase64 + '" style="max-height:60px;margin-top:0.5rem;display:block">' : ''}
+        ${c.logoBase64 ? '<img src="' + c.logoBase64 + '" style="max-height:60px;margin-top:0.5rem;display:block;border-radius:8px">' : ''}
       </div>
     </div>
     <div class="card">
-      <div class="card-header"><h3>GitHub Persistence (optional)</h3></div>
-      <p class="text-muted mb-1" style="font-size:0.85rem">Create a fine-grained PAT with Contents: Read & Write on your repo. Store only in browser localStorage.</p>
-      <div class="form-row">
-        <div class="form-group"><label>GitHub Owner</label><input id="cfg-owner" value="${c.github?.owner || ''}" placeholder="username or org"></div>
-        <div class="form-group"><label>Repository</label><input id="cfg-repo" value="${c.github?.repo || ''}" placeholder="repo-name"></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>Branch</label><input id="cfg-branch" value="${c.github?.branch || 'main'}"></div>
-        <div class="form-group"><label>Personal Access Token</label><input type="password" id="cfg-token" value="${c.github?.token || ''}" placeholder="ghp_..."></div>
-      </div>
-      <button class="btn btn-outline btn-sm" id="btn-test-gh">Test Connection</button>
+      <div class="card-header"><h3>Cloud sync status</h3></div>
+      <p style="font-size:0.875rem;margin-bottom:0.5rem">
+        ${ghConfigured
+          ? `<span class="badge badge-success">Configured</span> Repo: <strong>${gh.owner}/${gh.repo}</strong> (${gh.branch || 'main'})`
+          : `<span class="badge badge-warning">Local only</span> Data is saved in this browser. Sync is set up by your software provider.`}
+      </p>
+      <p class="text-muted" style="font-size:0.8rem">GitHub token and repo are managed by the vendor (via Vendor Console / keygen) — not editable here.</p>
+      ${ghConfigured ? `<button class="btn btn-outline btn-sm mt-1" id="btn-test-gh">Test connection</button>` : ''}
+      <p class="text-muted mt-1" style="font-size:0.8rem">Mode: ${Store.offline ? 'Offline cache' : (ghConfigured ? 'Online sync ready' : 'Local storage')}</p>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>About this software</h3></div>
+      <p style="font-size:0.9rem"><strong>${v.appName || 'POS'}</strong></p>
+      ${v.poweredByText ? `<p class="text-muted" style="font-size:0.85rem">${v.poweredByText}</p>` : ''}
+      ${v.makerName ? `<p style="font-size:0.85rem">Developer: <strong>${v.makerName}</strong></p>` : ''}
+      ${v.makerWebsite ? `<p style="font-size:0.85rem"><a href="${v.makerWebsite}" target="_blank" rel="noopener">${v.makerWebsite}</a></p>` : ''}
+      ${v.makerSupport ? `<p style="font-size:0.85rem">Support: ${v.makerSupport}</p>` : ''}
+      ${v.makerLogoBase64 ? `<img src="${v.makerLogoBase64}" alt="Maker" style="max-height:48px;margin-top:0.5rem">` : ''}
     </div>
     <div class="card">
       <div class="card-header"><h3>License & Trial</h3></div>
       <div class="form-group"><label>License Key</label><input id="cfg-license" value="${c.licenseKey || ''}" placeholder="XXXX-XXXX-XXXX-XXXX" style="text-transform:uppercase;letter-spacing:0.06em"></div>
       ${(() => {
         const t = Store.getTrialInfo();
-        if (c.licensed) return `<p class="alert alert-success" style="margin:0">✅ Licensed — full access unlocked.</p>`;
-        if (t.expired) return `<p class="alert alert-danger" style="margin:0">⛔ Trial expired (${t.trialDays} days). Enter a valid key to continue.</p>`;
-        return `<p class="alert alert-warning" style="margin:0">⏳ Trial: <strong>${t.remainingDays}</strong> of ${t.trialDays} days remaining (started ${Utils.formatDate(t.startedAt)}).</p>`;
+        if (c.licensed) return `<p class="alert alert-success" style="margin:0">Licensed — full access unlocked.</p>`;
+        if (t.expired) return `<p class="alert alert-danger" style="margin:0">Trial expired (${t.trialDays} days). Enter a valid key.</p>`;
+        return `<p class="alert alert-warning" style="margin:0">Trial: <strong>${t.remainingDays}</strong> of ${t.trialDays} days remaining.</p>`;
       })()}
-      <p class="text-muted mt-1" style="font-size:0.8rem">Generate keys from <code>keygen.html</code> (keep that file private).</p>
     </div>
     <button class="btn btn-primary" id="btn-save-cfg">Save Settings</button>
   `;
@@ -1186,18 +1728,13 @@ App.pages.settings = function (el) {
     const reader = new FileReader();
     reader.onload = () => {
       Store.config.logoBase64 = reader.result;
-      Utils.toast('Logo loaded (save settings to persist)', 'info');
+      Utils.toast('Logo loaded — click Save', 'info');
     };
     reader.readAsDataURL(file);
   });
 
   document.getElementById('btn-test-gh')?.addEventListener('click', async () => {
-    const owner = document.getElementById('cfg-owner').value.trim();
-    const repo = document.getElementById('cfg-repo').value.trim();
-    const token = document.getElementById('cfg-token').value.trim();
-    const branch = document.getElementById('cfg-branch').value.trim() || 'main';
-    if (!owner || !repo || !token) { Utils.toast('Fill owner, repo and token', 'warning'); return; }
-    GitHub.configure({ owner, repo, branch, token });
+    GitHub.configure(Store.config.github || {});
     try {
       await GitHub.getFile('data/config.json');
       Utils.toast('GitHub connection OK', 'success');
@@ -1215,27 +1752,16 @@ App.pages.settings = function (el) {
     Store.config.footnote = document.getElementById('cfg-foot').value.trim();
     Store.config.currencySymbol = document.getElementById('cfg-sym').value.trim() || 'Rs.';
     Store.config.taxLabel = document.getElementById('cfg-taxlabel').value.trim() || 'GST';
-    Store.config.github = {
-      owner: document.getElementById('cfg-owner').value.trim(),
-      repo: document.getElementById('cfg-repo').value.trim(),
-      branch: document.getElementById('cfg-branch').value.trim() || 'main',
-      token: document.getElementById('cfg-token').value.trim()
-    };
     const lic = document.getElementById('cfg-license').value.trim();
     Store.config.licenseKey = lic;
     Store.config.licensed = validateLicense(lic);
     Store.config.updatedAt = new Date().toISOString();
-    GitHub.configure(Store.config.github);
+    // github intentionally NOT editable from client settings
     await Store.saveConfig();
     App.applyBranding();
     App.checkLicense();
-    // If trial was expired and key is now valid, ensure we're not stuck
-    if (Store.config.licensed) {
-      const lock = document.getElementById('trial-lock');
-      if (lock) lock.remove();
-    }
-    Utils.toast(Store.config.licensed ? 'Settings saved — license active' : 'Settings saved', 'success');
-    // Re-render settings to refresh trial status card
+    if (Store.config.licensed) document.getElementById('trial-lock')?.remove();
+    Utils.toast(Store.config.licensed ? 'Saved — license active' : 'Settings saved', 'success');
     if (App.currentPage === 'settings') App.navigate('settings');
   });
 };
@@ -1267,6 +1793,85 @@ function ensureModal(id, title, bodyHtml, onSave, viewOnly = false) {
 }
 function openModal(id) { document.getElementById(id)?.classList.add('open'); }
 function closeModal(id) { document.getElementById(id)?.classList.remove('open'); }
+
+/* ===== PDF Invoice Export ===== */
+function exportInvoicePdf(inv) {
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    Utils.toast('PDF library not loaded yet — try again in a moment', 'warning');
+    return;
+  }
+  const { jsPDF } = window.jspdf;
+  const c = Store.config;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const sym = c.currencySymbol || 'Rs.';
+  let y = 18;
+
+  doc.setFontSize(16);
+  doc.setFont(undefined, 'bold');
+  doc.text(c.storeName || 'Store', 14, y);
+  y += 6;
+  doc.setFontSize(9);
+  doc.setFont(undefined, 'normal');
+  if (c.tagline) { doc.text(c.tagline, 14, y); y += 5; }
+  if (c.address) { doc.text(c.address, 14, y); y += 4; }
+  if (c.phone) { doc.text('Tel: ' + c.phone, 14, y); y += 4; }
+  if (c.ntn) { doc.text('NTN: ' + c.ntn, 14, y); y += 4; }
+
+  y += 4;
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'bold');
+  doc.text('INVOICE', 14, y);
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(9);
+  doc.text(inv.number, 50, y);
+  y += 6;
+  doc.text('Date: ' + Utils.formatDateTime(inv.createdAt), 14, y);
+  doc.text('Payment: ' + inv.paymentType, 110, y);
+  y += 5;
+  doc.text('Customer: ' + inv.customerName, 14, y);
+  doc.text('Cashier: ' + inv.cashierName, 110, y);
+  y += 8;
+
+  const body = inv.items.map(i => [
+    i.name,
+    String(i.qty),
+    (i.price).toFixed(2),
+    (i.price * i.qty - (i.discount || 0)).toFixed(2)
+  ]);
+
+  if (doc.autoTable) {
+    doc.autoTable({
+      startY: y,
+      head: [['Item', 'Qty', 'Price', 'Amount']],
+      body,
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [37, 99, 235] },
+      margin: { left: 14, right: 14 }
+    });
+    y = doc.lastAutoTable.finalY + 8;
+  } else {
+    inv.items.forEach(i => {
+      doc.text(`${i.name}  x${i.qty}  ${sym}${(i.price * i.qty).toFixed(2)}`, 14, y);
+      y += 5;
+    });
+    y += 4;
+  }
+
+  doc.setFontSize(10);
+  doc.text(`Subtotal: ${sym}${inv.subtotal.toFixed(2)}`, 140, y, { align: 'right' }); y += 5;
+  doc.text(`Discount: ${sym}${(inv.itemDiscount + inv.billDiscount).toFixed(2)}`, 140, y, { align: 'right' }); y += 5;
+  doc.text(`${c.taxLabel || 'Tax'}: ${sym}${inv.tax.toFixed(2)}`, 140, y, { align: 'right' }); y += 6;
+  doc.setFont(undefined, 'bold');
+  doc.setFontSize(12);
+  doc.text(`TOTAL: ${sym}${inv.total.toFixed(2)}`, 140, y, { align: 'right' });
+  y += 12;
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(8);
+  doc.text(c.footnote || 'Thank you for your business!', 14, y);
+
+  doc.save(`${inv.number || 'invoice'}.pdf`);
+  Utils.toast('PDF downloaded', 'success');
+}
 
 /* ===== License validation (shared secret with keygen) ===== */
 function validateLicense(key) {
