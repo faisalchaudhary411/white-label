@@ -2,14 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <title>POS & Invoice</title>
   <link rel="stylesheet" href="css/styles.css">
-  <!-- Optional barcode scanner (camera) -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js" defer></script>
 </head>
 <body>
-  <!-- License / trial banner -->
   <div id="license-banner" class="license-banner hidden no-print">
     ⏳ Free trial active — Generate a license key with <code>keygen.html</code> and enter it in Settings.
   </div>
@@ -26,11 +29,11 @@
       <form id="login-form">
         <div class="form-group">
           <label for="login-user">Username</label>
-          <input type="text" id="login-user" autocomplete="username" required placeholder="admin">
+          <input type="text" id="login-user" autocomplete="username" required placeholder="admin" enterkeyhint="next">
         </div>
         <div class="form-group">
           <label for="login-pass">Password</label>
-          <input type="password" id="login-pass" autocomplete="current-password" required placeholder="••••••••">
+          <input type="password" id="login-pass" autocomplete="current-password" required placeholder="••••••••" enterkeyhint="go">
         </div>
         <button type="submit" class="btn btn-primary btn-block">Sign In</button>
       </form>
@@ -42,6 +45,7 @@
 
   <!-- App Shell -->
   <div id="app-shell" class="app-shell">
+    <div id="sidebar-backdrop" class="sidebar-backdrop no-print"></div>
     <aside id="sidebar" class="sidebar no-print">
       <div class="sidebar-header">
         <img data-logo src="" alt="Logo" style="display:none">
@@ -52,6 +56,7 @@
         <div id="sync-status">Local mode</div>
       </div>
     </aside>
+
     <div class="main-content">
       <header class="topbar no-print">
         <div class="topbar-left">
@@ -65,6 +70,9 @@
       </header>
       <main class="content-area" id="content-area"></main>
     </div>
+
+    <!-- Mobile bottom navigation -->
+    <nav id="bottom-nav" class="bottom-nav no-print" aria-label="Main"></nav>
   </div>
 
   <script src="js/utils.js"></script>
