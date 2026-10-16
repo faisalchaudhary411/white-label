@@ -15,9 +15,25 @@ const Store = {
   priceMode: 'retail', // 'retail' | 'wholesale'
 
   async init() {
-    // Load local first for speed
+    // 1) Local cache first (fast)
     this.loadLocal();
-    // Then try GitHub if configured
+
+    // 2) Always try static data/config.json from the hosted site
+    //    (this is how vendor branding + GitHub settings from keygen reach the app)
+    try {
+      await this.loadStaticConfig();
+    } catch (e) {
+      console.warn('Static config.json not loaded', e);
+    }
+
+    // 3) Optional: seed empty collections from static JSON files
+    try {
+      await this.loadStaticDataIfEmpty();
+    } catch (e) {
+      console.warn('Static data seed skipped', e);
+    }
+
+    // 4) GitHub API sync if vendor embedded a token
     const gh = this.config.github || {};
     if (gh.token && gh.owner && gh.repo) {
       GitHub.configure(gh);
@@ -28,17 +44,124 @@ const Store = {
         if (data.customers) this.customers = data.customers;
         if (data.suppliers) this.suppliers = data.suppliers;
         if (data.invoices) this.invoices = data.invoices;
-        if (data.config) this.config = { ...this.config, ...data.config };
+        if (data.config) this.mergeConfig(data.config);
         this.shas = shas;
-        this.ensureTrialStart(); // keep trial clock stable after remote config merge
+        this.ensureTrialStart();
         this.saveLocal();
         this.offline = false;
       } catch (e) {
-        console.warn('GitHub sync failed, using local cache', e);
+        console.warn('GitHub sync failed, using local/static cache', e);
         this.offline = true;
       }
     }
   },
+
+  appBase() {
+    try {
+      const scripts = document.querySelectorAll('script[src]');
+      for (const s of scripts) {
+        const src = s.getAttribute('src') || '';
+        if (src.includes('js/store.js') || src.includes('js/app.js')) {
+          const u = new URL(src, location.href);
+          return u.href.replace(/js\/[^/]+$/, '');
+        }
+      }
+    } catch (_) {}
+    const path = location.pathname;
+    if (path.endsWith('/')) return location.origin + path;
+    return location.origin + path.replace(/\/[^/]*$/, '/');
+  },
+
+  async loadStaticConfig() {
+    const base = this.appBase();
+    const candidates = [
+      base + 'data/config.json',
+      new URL('data/config.json', location.href).href,
+      'data/config.json'
+    ];
+    let lastErr = null;
+    for (const url of candidates) {
+      try {
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) {
+          lastErr = new Error('HTTP ' + res.status + ' for ' + url);
+          continue;
+        }
+        const remote = await res.json();
+        this.mergeConfig(remote);
+        this.saveLocal();
+        this._configSource = url;
+        console.info('[POS] Loaded config from', url);
+        return remote;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    console.warn('[POS] config.json not found. Tried:', candidates, lastErr);
+    this._configLoadError = lastErr ? String(lastErr.message || lastErr) : 'not found';
+    return null;
+  },
+
+  importConfigObject(remote) {
+    this.mergeConfig(remote);
+    this.saveLocal();
+    if (this.config.github?.token && this.config.github?.owner && this.config.github?.repo) {
+      GitHub.configure(this.config.github);
+    }
+  },
+
+  /**
+   * Merge server/vendor config into local.
+   * Vendor + GitHub always come from the deployed file.
+   * Store branding from remote fills in / overwrites when remote has values.
+   * Local license key is kept if already set and remote has none.
+   */
+  mergeConfig(remote) {
+    if (!remote || typeof remote !== 'object') return;
+    const local = this.config || {};
+    const keepLicense = local.licenseKey && !remote.licenseKey;
+    const keepLicensed = keepLicense ? local.licensed : undefined;
+
+    this.config = {
+      ...local,
+      ...remote,
+      vendor: { ...(local.vendor || {}), ...(remote.vendor || {}) },
+      github: { ...(local.github || {}), ...(remote.github || {}) },
+      theme: { ...(local.theme || {}), ...(remote.theme || {}) }
+    };
+
+    if (keepLicense) {
+      this.config.licenseKey = local.licenseKey;
+      if (keepLicensed !== undefined) this.config.licensed = keepLicensed;
+    }
+    // If remote includes a license, mark licensed when key present
+    if (this.config.licenseKey && remote.licenseKey) {
+      this.config.licensed = true; // validated again in App.checkLicense / validateLicense
+    }
+  },
+
+  async loadStaticDataIfEmpty() {
+    const base = this.appBase();
+    const files = [
+      ['products', 'data/products.json'],
+      ['customers', 'data/customers.json'],
+      ['suppliers', 'data/suppliers.json'],
+      ['users', 'data/users.json']
+    ];
+    for (const [key, path] of files) {
+      if (Array.isArray(this[key]) && this[key].length > 0) continue;
+      try {
+        const res = await fetch(base + path, { cache: 'no-store' });
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (Array.isArray(data) && data.length) {
+          this[key] = data;
+        }
+      } catch (_) {}
+    }
+    this.saveLocal();
+  },
+
 
   loadLocal() {
     try {

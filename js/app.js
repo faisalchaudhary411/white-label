@@ -5,6 +5,10 @@ const App = {
 
   async start() {
     await Store.init();
+    // Re-validate license after static/GitHub config merge
+    if (Store.config.licenseKey) {
+      Store.config.licensed = typeof validateLicense === 'function' && validateLicense(Store.config.licenseKey);
+    }
     this.applyBranding();
     const access = Store.isAccessAllowed();
     if (!access.allowed) {
@@ -1697,8 +1701,17 @@ App.pages.settings = function (el) {
           : `<span class="badge badge-warning">Local only</span> Data is saved in this browser. Sync is set up by your software provider.`}
       </p>
       <p class="text-muted" style="font-size:0.8rem">GitHub token and repo are managed by the vendor (via Vendor Console / keygen) — not editable here.</p>
-      ${ghConfigured ? `<button class="btn btn-outline btn-sm mt-1" id="btn-test-gh">Test connection</button>` : ''}
+      <div class="flex gap-1 mt-1" style="flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" id="btn-reload-config">Reload from server</button>
+        <label class="btn btn-outline btn-sm" style="cursor:pointer;margin:0">
+          Import config.json
+          <input type="file" id="cfg-import-file" accept="application/json,.json" hidden>
+        </label>
+        ${ghConfigured ? `<button class="btn btn-outline btn-sm" id="btn-test-gh">Test connection</button>` : ''}
+      </div>
       <p class="text-muted mt-1" style="font-size:0.8rem">Mode: ${Store.offline ? 'Offline cache' : (ghConfigured ? 'Online sync ready' : 'Local storage')}</p>
+      ${Store._configSource ? `<p class="text-success mt-1" style="font-size:0.75rem">Loaded from: ${Store._configSource}</p>` : ''}
+      ${Store._configLoadError ? `<p class="text-danger mt-1" style="font-size:0.75rem">Server config not found (${Store._configLoadError}). Put file at <code>data/config.json</code> next to your app, or use Import.</p>` : ''}
     </div>
     <div class="card">
       <div class="card-header"><h3>About this software</h3></div>
@@ -1740,6 +1753,46 @@ App.pages.settings = function (el) {
       Utils.toast('GitHub connection OK', 'success');
     } catch (e) {
       Utils.toast('Connection failed: ' + e.message, 'danger');
+    }
+  });
+
+  document.getElementById('btn-reload-config')?.addEventListener('click', async () => {
+    try {
+      Store._configLoadError = null;
+      const remote = await Store.loadStaticConfig();
+      if (!remote) {
+        Utils.toast('Could not find data/config.json on the server. Use Import config.json instead.', 'danger');
+        App.navigate('settings');
+        return;
+      }
+      if (Store.config.licenseKey) {
+        Store.config.licensed = validateLicense(Store.config.licenseKey);
+      }
+      App.applyBranding();
+      App.checkLicense();
+      Utils.toast('Config reloaded from server', 'success');
+      App.navigate('settings');
+    } catch (e) {
+      Utils.toast('Could not load data/config.json: ' + e.message, 'danger');
+    }
+  });
+
+  document.getElementById('cfg-import-file')?.addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const textCfg = await file.text();
+      const remote = JSON.parse(textCfg);
+      Store.importConfigObject(remote);
+      if (Store.config.licenseKey) {
+        Store.config.licensed = validateLicense(Store.config.licenseKey);
+      }
+      App.applyBranding();
+      App.checkLicense();
+      Utils.toast('Config imported — branding & GitHub settings applied', 'success');
+      App.navigate('settings');
+    } catch (err) {
+      Utils.toast('Invalid config.json: ' + err.message, 'danger');
     }
   });
 
